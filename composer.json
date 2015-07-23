@@ -1,0 +1,31 @@
+{
+  "name": "torann/remote-model",
+  "description": "An eloquent-like model, for the Laravel framework.",
+  "keywords": ["laravel","eloquent","model","api","remote data"],
+  "license": "BSD 2-Clause",
+  "authors": [
+    {
+      "name": "Daniel Stainback",
+      "email": "daniel@lyften.com"
+    }
+  ],
+  "require": {
+    "php": ">=5.5.9",
+    "illuminate/contracts": "~5.1",
+    "jenssegers/date": "^3.0"
+  },
+  "require-dev": {
+    "mockery/mockery": "0.7.x",
+    "phpunit/phpunit": "3.7.x"
+  },
+  "autoload": {
+    "psr-4": {
+      "Torann\\RemoteModel\\": "src/Torann/RemoteModel"
+    }
+  },
+  "extra": {
+    "branch-alias": {
+      "dev-master": "0.1-dev"
+    }
+  }
+}
