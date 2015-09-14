@@ -11,17 +11,22 @@
   ],
   "require": {
     "php": ">=5.5.9",
+    "illuminate/support": "~5.1",
     "illuminate/contracts": "~5.1",
-    "jenssegers/date": "^3.0"
+    "jenssegers/date": "^3.0",
+    "illuminate/pagination": "^5.1"
   },
   "require-dev": {
-    "mockery/mockery": "0.7.x",
-    "phpunit/phpunit": "3.7.x"
+    "phpunit/phpunit": "^4.8",
+    "mockery/mockery": "^0.9.4"
   },
   "autoload": {
     "psr-4": {
       "Torann\\RemoteModel\\": "src/Torann/RemoteModel"
     }
+  },
+  "autoload-dev": {
+    "classmap": ["tests/stubs"]
   },
   "extra": {
     "branch-alias": {
