@@ -83,7 +83,7 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      *
      * @var string
      */
-    protected static $toStringFormat = 'Y-m-d H:i:s';
+    protected static $toStringFormat = 'Y-m-d\TH:i:s\Z';
 
     /**
      * Indicates whether attributes are snake cased on arrays.
@@ -134,6 +134,9 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      */
     public function __construct(array $attributes = [])
     {
+        // Set the default date format
+        Date::setToStringFormat(self::$toStringFormat);
+
         // Set endpoint value if not set already
         if (! isset($this->endpoint)) {
             $this->endpoint = str_replace('\\', '', snake_case(str_plural(class_basename($this))));
@@ -216,12 +219,11 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      * Fill the model with an array of attributes.
      *
      * @param  array  $attributes
-     * @return static
+     * @return self
      */
     public function fill(array $attributes)
     {
-        foreach ($attributes as $key => $value)
-        {
+        foreach ($attributes as $key => $value) {
             $this->setAttribute($key, $value);
         }
 
@@ -299,6 +301,20 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
         return new LengthAwarePaginator($this->hydrate($items, $modelClass), $total, $perPage, $currentPage, [
             'path' => LengthAwarePaginator::resolveCurrentPath()
         ]);
+    }
+
+    /**
+     * Execute the query and get the first result.
+     *
+     * @param  string $id
+     * @param  array  $params
+     * @return mixed|static
+     */
+    public static function find($id, array $params = [])
+    {
+        $instance = new static;
+
+        return $instance->request($instance->endpoint, 'find', [$id, $params]);
     }
 
     /**
@@ -452,6 +468,11 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
             'id', 'pagination', 'items'
         ]));
 
+        // Remove objects
+        foreach($this->casts as $name=>$type) {
+            if ($type === 'object') unset($params[$name]);
+        }
+
         // Send updates
         $results = $this->makeRequest($this->endpoint, 'update', [
             $this->attributes['id'],
@@ -459,6 +480,9 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
         ]);
 
         if ($results) {
+            // Update model with new data
+            $this->fill($results);
+
             $this->fireModelEvent('after', 'updated', $results);
         }
 
@@ -477,7 +501,6 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
 
         // Creation failed
         if (! $results) {
-
             return false;
         }
 
@@ -525,11 +548,11 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
     }
 
     /**
-     * Return error message
+     * Return client error response
      *
      * @return array
      */
-    public function getErrorResponse()
+    public function getClientError()
     {
         return $this->messageBag;
     }
@@ -547,7 +570,19 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
     }
 
     /**
-     * Find results based on given params.
+     * Execute the find by query and get the first result.
+     *
+     * @param  string $method
+     * @param  array  $params
+     * @return mixed|static
+     */
+    public function findBy($method, array $params = [])
+    {
+        return $this->request($this->endpoint, $method, $params);
+    }
+
+    /**
+     * Search for results based on given params.
      *
      * @param  array  $params
      * @return mixed|static
@@ -556,7 +591,10 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
     {
         $instance = new static;
 
-        return $instance->request($instance->endpoint, 'search', [$params]);
+        // Make request
+        $result = $instance->makeRequest($instance->endpoint, 'search', [$params]);
+
+        return $instance->paginateHydrate($result);
     }
 
     /**
@@ -1123,6 +1161,8 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      */
     protected function serializeDate(DateTime $date)
     {
+        //$date->setTimezone('US/Eastern');
+
         return $date->format($this->getDateFormat());
     }
 
@@ -1332,6 +1372,25 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
     public function __unset($key)
     {
         unset($this->attributes[$key]);
+    }
+
+    /**
+     * Handle dynamic static method calls into the method.
+     *
+     * @param  string  $method
+     * @param  array   $parameters
+     * @return mixed
+     */
+    public static function __callStatic($method, $parameters)
+    {
+        $instance = new static;
+
+        // Find by magic method
+        if (substr($method, 0, 6) === 'findBy') {
+            return $instance->findBy($method, $parameters);
+        }
+
+        return call_user_func_array([$instance, $method], $parameters);
     }
 
     /**
