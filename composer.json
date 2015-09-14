@@ -1,7 +1,7 @@
 {
   "name": "torann/remote-model",
   "description": "An eloquent-like model, for the Laravel framework.",
-  "keywords": ["laravel","eloquent","model","api","remote data"],
+  "keywords": ["laravel","eloquent","model","api","remote data","custom models"],
   "license": "BSD 2-Clause",
   "authors": [
     {
