@@ -298,9 +298,18 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
         $perPage = array_get($pagination, 'perPage', array_get($pagination, 'per_page', 15));
         $total = $perPage * array_get($pagination, 'last', 0);
 
-        return new LengthAwarePaginator($this->hydrate($items, $modelClass), $total, $perPage, $currentPage, [
+        // Set options
+        $options = is_array($result) ? array_except($result, [
+            'pagination',
+            'items',
+            'next',
+            'per_page',
+            'last'
+        ]) : [];
+
+        return new LengthAwarePaginator($this->hydrate($items, $modelClass), $total, $perPage, $currentPage, array_merge($options, [
             'path' => LengthAwarePaginator::resolveCurrentPath()
-        ]);
+        ]));
     }
 
     /**
@@ -368,6 +377,28 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
         $result = $instance->makeRequest($instance->endpoint, $method, [$params]);
 
         return $instance->paginateHydrate($result);
+    }
+
+    /**
+     * Find a model by its primary key or throw an exception
+     *
+     * @param  string $id
+     * @param  array  $params
+     * @return mixed|static
+     *
+     * @throws \Torann\RemoteModel\NotFoundException
+     */
+    public static function findOrFail($id, array $params = [])
+    {
+        $instance = new static;
+
+        // Make request
+        if (! is_null($result = $instance->request($instance->endpoint, 'find', [$id, $params]))) {
+            return $result;
+        }
+
+        // Not found
+        throw new NotFoundException;
     }
 
     /**
@@ -689,6 +720,16 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
     }
 
     /**
+     * Get the route key value for the model.
+     *
+     * @return string
+     */
+    public function getRouteKeyValue()
+    {
+        return $this->routeKeyValue;
+    }
+
+    /**
      * Add a basic where clause to the query.
      *
      * NOTE: Used for route binding
@@ -713,7 +754,7 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      */
     public function first()
     {
-        $model = $this->get($this->routeKeyValue);
+        $model = $this->get($this->getRouteKeyValue());
 
         if ($model) {
             $model->fireModelEvent('after', 'route');
