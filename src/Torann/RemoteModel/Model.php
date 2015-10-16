@@ -374,7 +374,7 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
         $instance = new static;
 
         // Make request
-        $result = $instance->makeRequest($instance->endpoint, $method, [$params]);
+        $result = $instance->makeRequest($instance->endpoint, $method, [array_filter($params)]);
 
         return $instance->paginateHydrate($result);
     }
@@ -482,7 +482,7 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
         ], $params);
 
         // Make request
-        $result = $this->makeRequest($this->endpoint, $method, [$this->id, $params]);
+        $result = $this->makeRequest($this->endpoint, $method, [$this->id, array_filter($params)]);
 
         return $this->paginateHydrate($result, $modelClass);
     }
@@ -569,6 +569,16 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
     }
 
     /**
+     * Where there errors
+     *
+     * @return bool
+     */
+    public function hasErrors()
+    {
+        return $this->messageBag ? true : false;
+    }
+
+    /**
      * Return errors
      *
      * @return array
@@ -623,7 +633,7 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
         $instance = new static;
 
         // Make request
-        $result = $instance->makeRequest($instance->endpoint, 'search', [$params]);
+        $result = $instance->makeRequest($instance->endpoint, 'search', [array_filter($params)]);
 
         return $instance->paginateHydrate($result);
     }
