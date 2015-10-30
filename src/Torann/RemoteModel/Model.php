@@ -503,10 +503,18 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
     /**
      * Delete the model from the database.
      *
-     * @return bool|null
+     * @param  string $id
+     * @return bool
      */
-    public function delete()
+    public function delete($id = null)
     {
+        // This allows for delete based on the primary key
+        if ($id && ! $this->exists) {
+            $this->setAttribute($this->getKeyName(), $id);
+            $this->exists = true;
+        }
+
+        // Can't delete something that doesn't exists
         if ($this->exists)
         {
             if ($this->fireModelEvent('before', 'delete') === false) {
@@ -524,6 +532,8 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
 
             return true;
         }
+
+        return false;
     }
 
     /**
@@ -651,7 +661,7 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      */
     public function getErrors()
     {
-        return $this->messageBag ? array_get($this->messageBag, 'errors') : fasle;
+        return $this->messageBag ? array_get($this->messageBag, 'errors') : false;
     }
 
     /**
