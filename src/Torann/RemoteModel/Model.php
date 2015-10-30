@@ -41,6 +41,13 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
     protected $attributes = [];
 
     /**
+     * The key value of the parent model.
+     *
+     * @var string
+     */
+    protected static $parent_id;
+
+    /**
      * The attributes that should be hidden for arrays.
      *
      * @var array
@@ -106,19 +113,12 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      */
     protected static $mutatorCache = [];
 
-    /*
-     * Route key name
+    /**
+     * The primary key for the model.
      *
      * @var string
      */
-    private $routeKeyValue = 'id';
-
-    /*
-     * Route key name
-     *
-     * @var string
-     */
-    private $routeKeyName = 'id';
+    protected $primaryKey = 'id';
 
     /**
      * All of the registered errors.
@@ -131,20 +131,18 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      * Create a new Eloquent model instance.
      *
      * @param  array  $attributes
+     * @parem string  $parentID
      */
-    public function __construct(array $attributes = [])
+    public function __construct(array $attributes = [], $parentID = null)
     {
         // Set the default date format
         Date::setToStringFormat(self::$toStringFormat);
 
-        // Set endpoint value if not set already
-        if (! isset($this->endpoint)) {
-            $this->endpoint = str_replace('\\', '', snake_case(str_plural(class_basename($this))));
-        }
-
         $this->bootIfNotBooted();
 
         $this->fill($attributes);
+
+        $this->setParentID($parentID);
     }
 
     /**
@@ -216,6 +214,56 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
     }
 
     /**
+     * Get the primary key for the model.
+     *
+     * @return string
+     */
+    public function getKeyName()
+    {
+        return $this->primaryKey;
+    }
+
+    /**
+     * Set the primary key for the model.
+     *
+     * @param  string  $key
+     * @return $this
+     */
+    public function setKeyName($key)
+    {
+        $this->primaryKey = $key;
+
+        return $this;
+    }
+
+    /**
+     * Set the parent ID for the model.
+     *
+     * @param  string  $id
+     * @return $this
+     */
+    public function setParentID($id)
+    {
+        self::$parent_id = $id;
+
+        return $this;
+    }
+
+    /**
+     * Get API endpoint.
+     *
+     * @return string
+     */
+    public function getEndpoint()
+    {
+        if (is_null($this->endpoint)) {
+            $this->endpoint = str_replace('\\', '', snake_case(str_plural(class_basename($this))));
+        }
+
+        return $this->endpoint;
+    }
+
+    /**
      * Fill the model with an array of attributes.
      *
      * @param  array  $attributes
@@ -242,7 +290,7 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
         // This method just provides a convenient way for us to generate fresh model
         // instances of this current model. It is particularly useful during the
         // hydration of new objects via the Eloquent query builder instances.
-        $model = new static((array) $attributes);
+        $model = new static((array) $attributes, self::$parent_id);
 
         $model->exists = $exists;
 
@@ -272,7 +320,7 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
                 return new $class[$item['type']]($item);
             }
 
-            return new static($item);
+            return new static($item, self::$parent_id);
 
         }, $items);
 
@@ -321,9 +369,9 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      */
     public static function find($id, array $params = [])
     {
-        $instance = new static;
+        $instance = new static([], self::$parent_id);
 
-        return $instance->request($instance->endpoint, 'find', [$id, $params]);
+        return $instance->request($instance->getEndpoint(), 'find', [$id, $params]);
     }
 
     /**
@@ -334,7 +382,7 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      */
     public static function create(array $attributes = [])
     {
-        $model = new static($attributes);
+        $model = new static($attributes, self::$parent_id);
 
         $model->save();
 
@@ -349,12 +397,18 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      */
     public static function all(array $params = [])
     {
-        $instance = new static;
+        $instance = new static([], self::$parent_id);
 
         // Make request
-        $result = $instance->makeRequest($instance->endpoint, 'all', [$params]);
+        $result = $instance->makeRequest($instance->getEndpoint(), 'all', [array_filter($params)]);
 
-        return $instance->paginateHydrate($result);
+        // Hydrate object
+        $result = $instance->paginateHydrate($result);
+
+        // Append search params
+        $result->appends(array_filter($params));
+
+        return $result;
     }
 
     /**
@@ -367,16 +421,22 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
     public static function paginate($method, array $params = [])
     {
         // Set request params
-        $params = array_merge([
+        $params = array_filter(array_merge([
             'page' => 1
-        ], $params);
+        ], $params));
 
-        $instance = new static;
+        $instance = new static([], self::$parent_id);;
 
         // Make request
-        $result = $instance->makeRequest($instance->endpoint, $method, [array_filter($params)]);
+        $result = $instance->makeRequest($instance->getEndpoint(), $method, [$params]);
 
-        return $instance->paginateHydrate($result);
+        // Hydrate object
+        $result = $instance->paginateHydrate($result);
+
+        // Append search params
+        $result->appends($params);
+
+        return $result;
     }
 
     /**
@@ -390,10 +450,10 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      */
     public static function findOrFail($id, array $params = [])
     {
-        $instance = new static;
+        $instance = new static([], self::$parent_id);
 
         // Make request
-        if (! is_null($result = $instance->request($instance->endpoint, 'find', [$id, $params]))) {
+        if (! is_null($result = $instance->request($instance->getEndpoint(), 'find', [$id, $params]))) {
             return $result;
         }
 
@@ -477,14 +537,20 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
     public function paginateChildren($modelClass, $method, array $params = [])
     {
         // Set request params
-        $params = array_merge([
+        $params = array_filter(array_merge([
             'page' => 1
-        ], $params);
+        ], $params));
 
         // Make request
-        $result = $this->makeRequest($this->endpoint, $method, [$this->id, array_filter($params)]);
+        $result = $this->makeRequest($this->getEndpoint(), $method, [$this->id, $params]);
 
-        return $this->paginateHydrate($result, $modelClass);
+        // Hydrate object
+        $result = $this->paginateHydrate($result, $modelClass);
+
+        // Append search params
+        $result->appends($params);
+
+        return $result;
     }
 
     /**
@@ -505,7 +571,7 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
         }
 
         // Send updates
-        $results = $this->makeRequest($this->endpoint, 'update', [
+        $results = $this->makeRequest($this->getEndpoint(), 'update', [
             $this->attributes['id'],
             $params
         ]);
@@ -528,7 +594,7 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      */
     protected function performCreate(array $options = [])
     {
-        $results = $this->makeRequest($this->endpoint, 'create', [$this->attributes]);
+        $results = $this->makeRequest($this->getEndpoint(), 'create', [$this->attributes]);
 
         // Creation failed
         if (! $results) {
@@ -558,7 +624,7 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      */
     protected function performDeleteOnModel()
     {
-        $results = $this->makeRequest($this->endpoint, 'destroy', [$this->id]);
+        $results = $this->makeRequest($this->getEndpoint(), 'destroy', [$this->id]);
 
         // Creation failed
         if (! $results) {
@@ -589,6 +655,16 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
     }
 
     /**
+     * Return client error code
+     *
+     * @return int
+     */
+    public function getErrorCode()
+    {
+        return $this->messageBag ? array_get($this->messageBag, 'code') : 200;
+    }
+
+    /**
      * Return client error response
      *
      * @return array
@@ -607,7 +683,7 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      */
     public function get($id, array $params = [])
     {
-        return $this->request($this->endpoint, 'find', [$id, $params]);
+        return $this->request($this->getEndpoint(), 'find', [$id, $params]);
     }
 
     /**
@@ -619,7 +695,7 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      */
     public function findBy($method, array $params = [])
     {
-        return $this->request($this->endpoint, $method, $params);
+        return $this->request($this->getEndpoint(), $method, $params);
     }
 
     /**
@@ -630,12 +706,18 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      */
     public static function search(array $params)
     {
-        $instance = new static;
+        $instance = new static([], self::$parent_id);
 
         // Make request
-        $result = $instance->makeRequest($instance->endpoint, 'search', [array_filter($params)]);
+        $result = $instance->makeRequest($instance->getEndpoint(), 'search', [array_filter($params)]);
 
-        return $instance->paginateHydrate($result);
+        // Hydrate object
+        $result = $instance->paginateHydrate($result);
+
+        // Append search params
+        $result->appends(array_filter($params));
+
+        return $result;
     }
 
     /**
@@ -720,13 +802,11 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
     /**
      * Get the route key for the model.
      *
-     * NOTE: Used for route binding
-     *
      * @return string
      */
     public function getRouteKeyName()
     {
-        return $this->routeKeyName;
+        return $this->getKeyName();
     }
 
     /**
@@ -734,9 +814,9 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      *
      * @return string
      */
-    public function getRouteKeyValue()
+    public function getRouteKey()
     {
-        return $this->routeKeyValue;
+        return $this->getAttribute($this->getRouteKeyName());
     }
 
     /**
@@ -750,7 +830,7 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      */
     public function where($column, $value = null)
     {
-        $this->routeKeyValue = $value;
+        $this->setAttribute($column, $value);
 
         return $this;
     }
@@ -764,7 +844,7 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      */
     public function first()
     {
-        $model = $this->get($this->getRouteKeyValue());
+        $model = $this->get($this->getRouteKey());
 
         if ($model) {
             $model->fireModelEvent('after', 'route');
@@ -1224,7 +1304,7 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      */
     public function replicate()
     {
-        with($instance = new static)->fill($this->attributes);
+        with($instance = new static($this->attributes, self::$parent_id));
 
         return $instance;
     }
@@ -1281,6 +1361,34 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
         }
 
         static::$mutatorCache[$class] = $mutatedAttributes;
+    }
+
+    /**
+     * Define a one-to-many relationship.
+     *
+     * @param  string  $related
+     * @param  string  $parentKey
+     * @param  string  $localKey
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function hasMany($related, $parentKey = null, $localKey = null)
+    {
+        $parentKey = $parentKey ?: $this->getParentKey();
+        $localKey = $localKey ?: $this->getKeyName();
+
+        $instance = new $related;
+
+        return new Relations\Relation($instance, $this, $parentKey, $localKey);
+    }
+
+    /**
+     * Get the default foreign key name for the model.
+     *
+     * @return string
+     */
+    public function getParentKey()
+    {
+        return snake_case(class_basename($this)).'ID';
     }
 
     /**
@@ -1370,7 +1478,14 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      */
     protected function makeRequest($endpoint = null, $method, $params)
     {
-        $endpoint = $endpoint ?: $this->endpoint;
+        $endpoint = $endpoint ?: $this->getEndpoint();
+
+        // Prepend relationship, if one exists.
+        if (self::$parent_id) {
+            $params = array_merge([
+                self::$parent_id
+            ], $params);
+        }
 
         $results = call_user_func_array([static::$client->$endpoint(), $method], $params);
 
@@ -1434,7 +1549,7 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      */
     public static function __callStatic($method, $parameters)
     {
-        $instance = new static;
+        $instance = new static([], self::$parent_id);
 
         // Find by magic method
         if (substr($method, 0, 6) === 'findBy') {
