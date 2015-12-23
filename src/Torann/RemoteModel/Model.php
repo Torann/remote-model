@@ -397,16 +397,19 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      */
     public static function all(array $params = [])
     {
+        // Remove empty params
+        $params = array_filter($params);
+
         $instance = new static([], self::$parent_id);
 
         // Make request
-        $result = $instance->makeRequest($instance->getEndpoint(), 'all', [array_filter($params)]);
+        $result = $instance->makeRequest($instance->getEndpoint(), 'all', [$params]);
 
         // Hydrate object
         $result = $instance->paginateHydrate($result);
 
         // Append search params
-        $result->appends(array_filter($params));
+        $result->appends($params);
 
         return $result;
     }
@@ -465,10 +468,17 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      * Update the model in the database.
      *
      * @param  array  $attributes
+     * @param  mixed  $id
      * @return bool|int
      */
-    public function update(array $attributes = [])
+    public function update(array $attributes = [], $id = null)
     {
+        // This allows for update based on the primary key
+        if ($id && $this->exists === false) {
+            $this->setAttribute($this->getKeyName(), $id);
+            $this->exists = true;
+        }
+
         return $this->fill($attributes)->save();
     }
 
@@ -1276,6 +1286,12 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
         // fields on the database, while still supporting Carbonized conversion.
         elseif (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $value)) {
             return Date::createFromFormat('Y-m-d', $value);
+        }
+
+        // If the value is in simply hour, minute, second format, we will instantiate the
+        // Carbon instances from that format.
+        elseif (preg_match('/^(\d{2}):(\d{2}):(\d{2})$/', $value)) {
+            return Date::createFromFormat('H:i:s', $value);
         }
 
         // If the value is in zulu format, we will instantiate the
