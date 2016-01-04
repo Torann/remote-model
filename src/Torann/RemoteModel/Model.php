@@ -971,8 +971,7 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
         // We want to spin through all the mutated attributes for this model and call
         // the mutator for the attribute. We cache off every mutated attributes so
         // we don't have to constantly check on attributes that actually change.
-        foreach ($mutatedAttributes as $key)
-        {
+        foreach ($mutatedAttributes as $key) {
             if ( ! array_key_exists($key, $attributes)) continue;
 
             $attributes[$key] = $this->mutateAttributeForArray(
@@ -983,14 +982,19 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
         // Next we will handle any casts that have been setup for this model and cast
         // the values to their appropriate type. If the attribute has a mutator we
         // will not perform the cast on those attributes to avoid any confusion.
-        foreach ($this->casts as $key => $value)
-        {
-            if ( ! array_key_exists($key, $attributes) ||
-                in_array($key, $mutatedAttributes)) continue;
+        foreach ($this->casts as $key => $value) {
+            if (! array_key_exists($key, $attributes) ||
+                in_array($key, $mutatedAttributes)) {
+                continue;
+            }
 
             $attributes[$key] = $this->castAttribute(
                 $key, $attributes[$key]
             );
+
+            if ($attributes[$key] && ($value === 'date' || $value === 'datetime')) {
+                $attributes[$key] = $this->serializeDate($attributes[$key]);
+            }
         }
 
         // Here we will grab all of the appended, calculated attributes to this model
@@ -1318,8 +1322,6 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      */
     protected function serializeDate(DateTime $date)
     {
-        //$date->setTimezone('US/Eastern');
-
         return $date->format($this->getDateFormat());
     }
 
