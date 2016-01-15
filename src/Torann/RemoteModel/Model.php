@@ -1257,9 +1257,7 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
         // which simply lets the developers tweak the attribute as it is set on
         // the model, such as "json_encoding" an listing of data for storage.
         if ($this->hasSetMutator($key)) {
-            $method = 'set' . studly_case($key) . 'Attribute';
-
-            return $this->{$method}($value);
+            return $this->{'set' . studly_case($key) . 'Attribute'}($value);
         }
 
         if ($this->isJsonCastable($key)) {
