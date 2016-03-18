@@ -517,7 +517,7 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
         }
 
         if ($saved) {
-            $this->fireModelEvent('after', 'saved');
+            $this->fireModelEvent('saved', false);
         }
 
         return $saved;
@@ -539,7 +539,7 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
 
         // Can't delete something that doesn't exists
         if ($this->exists) {
-            if ($this->fireModelEvent('before', 'delete') === false) {
+            if ($this->fireModelEvent('deleting') === false) {
                 return false;
             }
 
@@ -550,12 +550,109 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
             // Once the model has been deleted, we will fire off the deleted event so that
             // the developers may hook into post-delete operations. We will then return
             // a boolean true as the delete is presumably successful on the database.
-            $this->fireModelEvent('after', 'delete');
+            $this->fireModelEvent('deleted', false);
 
             return true;
         }
 
         return false;
+    }
+
+
+    /**
+     * Register a saving model event with the dispatcher.
+     *
+     * @param  \Closure|string  $callback
+     * @param  int  $priority
+     * @return void
+     */
+    public static function saving($callback, $priority = 0)
+    {
+        static::registerModelEvent('saving', $callback, $priority);
+    }
+
+    /**
+     * Register a saved model event with the dispatcher.
+     *
+     * @param  \Closure|string  $callback
+     * @param  int  $priority
+     * @return void
+     */
+    public static function saved($callback, $priority = 0)
+    {
+        static::registerModelEvent('saved', $callback, $priority);
+    }
+
+    /**
+     * Register an updating model event with the dispatcher.
+     *
+     * @param  \Closure|string  $callback
+     * @param  int  $priority
+     * @return void
+     */
+    public static function updating($callback, $priority = 0)
+    {
+        static::registerModelEvent('updating', $callback, $priority);
+    }
+
+    /**
+     * Register an updated model event with the dispatcher.
+     *
+     * @param  \Closure|string  $callback
+     * @param  int  $priority
+     * @return void
+     */
+    public static function updated($callback, $priority = 0)
+    {
+        static::registerModelEvent('updated', $callback, $priority);
+    }
+
+    /**
+     * Register a creating model event with the dispatcher.
+     *
+     * @param  \Closure|string  $callback
+     * @param  int  $priority
+     * @return void
+     */
+    public static function creating($callback, $priority = 0)
+    {
+        static::registerModelEvent('creating', $callback, $priority);
+    }
+
+    /**
+     * Register a created model event with the dispatcher.
+     *
+     * @param  \Closure|string  $callback
+     * @param  int  $priority
+     * @return void
+     */
+    public static function created($callback, $priority = 0)
+    {
+        static::registerModelEvent('created', $callback, $priority);
+    }
+
+    /**
+     * Register a deleting model event with the dispatcher.
+     *
+     * @param  \Closure|string  $callback
+     * @param  int  $priority
+     * @return void
+     */
+    public static function deleting($callback, $priority = 0)
+    {
+        static::registerModelEvent('deleting', $callback, $priority);
+    }
+
+    /**
+     * Register a deleted model event with the dispatcher.
+     *
+     * @param  \Closure|string  $callback
+     * @param  int  $priority
+     * @return void
+     */
+    public static function deleted($callback, $priority = 0)
+    {
+        static::registerModelEvent('deleted', $callback, $priority);
     }
 
     /**
@@ -594,6 +691,13 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
     {
         $params = $this->setKeysForSave();
 
+        // If the updating event returns false, we will cancel the update operation so
+        // developers can hook Validation systems into their models and cancel this
+        // operation if the model does not pass validation. Otherwise, we update.
+        if ($this->fireModelEvent('updating') === false) {
+            return false;
+        }
+
         // Send updates
         $results = $this->makeRequest($this->getEndpoint(), 'update', [
             $this->getKey(),
@@ -604,7 +708,7 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
             // Update model with new data
             $this->fill($results);
 
-            $this->fireModelEvent('after', 'updated', $results);
+            $this->fireModelEvent('updated', false);
         }
 
         return true;
@@ -618,6 +722,10 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      */
     protected function performCreate(array $options = [])
     {
+        if ($this->fireModelEvent('creating') === false) {
+            return false;
+        }
+
         $results = $this->makeRequest($this->getEndpoint(), 'create', [$this->attributes]);
 
         // Creation failed
@@ -636,7 +744,7 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
         // during the event. This will allow them to do so and run an update here.
         $this->exists = true;
 
-        $this->fireModelEvent('after', 'created', $results);
+        $this->fireModelEvent('created', false);
 
         return true;
     }
@@ -893,13 +1001,7 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      */
     public function first()
     {
-        $model = $this->get($this->getRouteKey());
-
-        if ($model) {
-            $model->fireModelEvent('after', 'route');
-        }
-
-        return $model;
+        return $this->get($this->getRouteKey());
     }
 
     /**
@@ -1550,27 +1652,39 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
     }
 
     /**
+     * Register a model event with the dispatcher.
+     *
+     * @param  string  $event
+     * @param  \Closure|string  $callback
+     * @param  int  $priority
+     * @return void
+     */
+    protected static function registerModelEvent($event, $callback, $priority = 0)
+    {
+        $name = get_called_class();
+
+        app('events')->listen("eloquent.{$event}: {$name}", $callback, $priority);
+    }
+
+    /**
      * Fire the given event for the model.
      *
-     * @param  string $which before or after
-     * @param  string $event
-     * @param  array  $response
+     * @param  string  $event
+     * @param  bool  $halt
      * @return mixed
      */
-    protected function fireModelEvent($which, $event, $response = [])
+    protected function fireModelEvent($event, $halt = true)
     {
-        $method = $which . ucfirst($event);
+        // We will append the names of the class to the event to distinguish it from
+        // other model events that are fired, allowing us to listen on each model
+        // event set individually instead of catching event for all the models.
+        $event = "eloquent.{$event}: " . get_class($this);
 
-        if (method_exists($this, $method)) {
-            $result = call_user_func_array([$this, $method], $response);
+        $method = $halt ? 'until' : 'fire';
 
-            if ($result === false) {
-                return $result;
-            }
-        }
-
-        return null;
+        return app('events')->$method($event, $this);
     }
+
 
     /**
      * Determine if an attribute exists on the model.
