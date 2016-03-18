@@ -4,7 +4,6 @@ This model provides an eloquent-like base class that can be used to build custom
 
 ## Installation
 
-
 Install using composer:
 
 ```
@@ -54,7 +53,7 @@ $client = new Client();
 $client->{ENDPOINT}()->{METHOD}();
 ```
 
-**ENDPOINT** 
+**ENDPOINT**
 The "snake case", plural name of the model class will be used as the endpoint name unless another name is explicitly specified. Using `protected $endpoint = 'users';` at the top of the model, this is similar to the `$table` variable in Laravel models.
 
 **METHOD**
@@ -261,7 +260,7 @@ namespace App;
 use DateTime;
 use Torann\RemoteModel\Model as BaseModel;
 
-class User extends BaseModel 
+class User extends BaseModel
 {
     protected $hidden = [
         'password'
