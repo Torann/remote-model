@@ -164,7 +164,11 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
         if (!isset(static::$booted[$class])) {
             static::$booted[$class] = true;
 
+            $this->fireModelEvent('booting', false);
+
             static::boot();
+
+            $this->fireModelEvent('booted', false);
         }
     }
 
@@ -274,6 +278,29 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
         }
 
         return $this->endpoint;
+    }
+
+    /**
+     * Register an observer with the Model.
+     *
+     * @param  object|string  $class
+     * @param  int  $priority
+     * @return void
+     */
+    public static function observe($class, $priority = 0)
+    {
+        $instance = new static;
+
+        $className = is_string($class) ? $class : get_class($class);
+
+        // When registering a model observer, we will spin through the possible events
+        // and determine if this observer has that method. If it does, we will hook
+        // it into the model's event system, making it convenient to watch these.
+        foreach ($instance->getObservableEvents() as $event) {
+            if (method_exists($class, $event)) {
+                static::registerModelEvent($event, $className.'@'.$event, $priority);
+            }
+        }
     }
 
     /**
@@ -1664,6 +1691,19 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
         $name = get_called_class();
 
         app('events')->listen("eloquent.{$event}: {$name}", $callback, $priority);
+    }
+
+    /**
+     * Get the observable event names.
+     *
+     * @return array
+     */
+    public function getObservableEvents()
+    {
+        return [
+            'creating', 'created', 'updating', 'updated',
+            'deleting', 'deleted', 'saving', 'saved',
+        ];
     }
 
     /**
