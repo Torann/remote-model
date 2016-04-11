@@ -6,6 +6,7 @@ use DateTime;
 use ArrayAccess;
 use JsonSerializable;
 use Jenssegers\Date\Date;
+use Illuminate\Support\Arr;
 use Illuminate\Contracts\Support\Jsonable;
 use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -39,6 +40,13 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      * @var array
      */
     protected $attributes = [];
+
+    /**
+     * The model attribute's original state.
+     *
+     * @var array
+     */
+    protected $original = [];
 
     /**
      * The key value of the parent model.
@@ -519,6 +527,8 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
             $this->exists = true;
         }
 
+        $this->syncOriginal();
+
         return $this->fill($attributes)->save();
     }
 
@@ -529,6 +539,8 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      */
     public function save()
     {
+        $this->fireModelEvent('saving', false);
+
         // If the model already exists in the database we can just update our record
         // that is already in this database using the current IDs in this "where"
         // clause to only update this model. Otherwise, we'll just insert them.
@@ -1503,6 +1515,30 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
     }
 
     /**
+     * Get the model's original attribute values.
+     *
+     * @param  string|null  $key
+     * @param  mixed  $default
+     * @return mixed|array
+     */
+    public function getOriginal($key = null, $default = null)
+    {
+        return Arr::get($this->original, $key, $default);
+    }
+
+    /**
+     * Sync the original attributes with the current.
+     *
+     * @return $this
+     */
+    public function syncOriginal()
+    {
+        $this->original = (array) $this->attributes;
+
+        return $this;
+    }
+
+    /**
      * Get the mutated attributes for a given instance.
      *
      * @return array
@@ -1552,6 +1588,7 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      * @param  string $related
      * @param  string $parentKey
      * @param  string $localKey
+     *
      * @return \Illuminate\Database\Eloquent\Relations\HasMany
      */
     public function hasMany($related, $parentKey = null, $localKey = null)
@@ -1562,6 +1599,27 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
         $instance = new $related;
 
         return new Relations\Relation($instance, $this, $parentKey, $localKey);
+    }
+
+    /**
+     * Define a one-to-one relationship.
+     *
+     * @param  string $related
+     * @param  string $parentKey
+     * @param  string $localKey
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function hasOne($related, $parentKey = null, $localKey = null)
+    {
+        $parentKey = $parentKey ?: $this->getParentKey();
+        $localKey = $localKey ?: $this->getKeyName();
+
+        $instance = new $related;
+
+        $relation = new Relations\Relation($instance, $this, $parentKey, $localKey);
+
+        return $relation->find($localKey);
     }
 
     /**
