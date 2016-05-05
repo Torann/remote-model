@@ -1040,7 +1040,14 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      */
     public function first()
     {
-        return $this->get($this->getRouteKey());
+        $result = $this->get($this->getRouteKey());
+
+        // After route event
+        if ($result && method_exists($result, 'afterRoute')) {
+            $result->afterRoute();
+        }
+
+        return $result;
     }
 
     /**
