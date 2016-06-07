@@ -306,6 +306,10 @@ echo $item; // {"name":"john"}
 
 ## Change Log
 
+**0.1.0**
+
+- Fix parent ID bug
+
 **0.0.1**
 
 - First release
