@@ -1389,7 +1389,9 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
             case 'boolean':
                 return (bool)$value;
             case 'object':
-                return json_decode($value);
+                return is_array($value)
+                    ? json_decode(json_encode($value))
+                    : json_decode($value);
             case 'array':
             case 'json':
                 return json_decode($value, true);
@@ -1417,10 +1419,6 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
         // the model, such as "json_encoding" an listing of data for storage.
         if ($this->hasSetMutator($key)) {
             return $this->{'set' . studly_case($key) . 'Attribute'}($value);
-        }
-
-        if ($this->isJsonCastable($key)) {
-            $value = json_encode($value);
         }
 
         $this->attributes[$key] = $value;
