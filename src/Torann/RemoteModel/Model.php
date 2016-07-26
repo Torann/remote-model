@@ -7,6 +7,7 @@ use ArrayAccess;
 use JsonSerializable;
 use Jenssegers\Date\Date;
 use Illuminate\Support\Arr;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Contracts\Support\Jsonable;
 use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -1125,7 +1126,10 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
         // Process attributes
         foreach ($attributes as $key => $value) {
             // Convert objects to array
-            if (is_object($value) && is_callable([$value, 'toArray'])) {
+            if (is_object($value)
+                && !($value instanceof UploadedFile)
+                && is_callable([$value, 'toArray'])
+            ) {
                 $attributes[$key] = $value->toArray();
             }
 
