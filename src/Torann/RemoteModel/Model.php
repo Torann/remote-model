@@ -372,18 +372,20 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
             }
 
             // Map an array of classes
-            if (gettype($class) === 'array'
-                && isset($item['type'])
-                && isset($class[$item['type']])
-            ) {
-                return new $class[$item['type']]($item);
+            if (gettype($class) === 'array') {
+
+                if (isset($item['type']) && isset($class[$item['type']])) {
+                    return new $class[$item['type']]($item);
+                }
+
+                return null;
             }
 
             return new static($item, static::getParentID());
 
         }, $items);
 
-        return $items;
+        return array_filter($items);
     }
 
     /**
