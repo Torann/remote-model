@@ -405,7 +405,12 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
 
         // Set pagination
         $perPage = array_get($pagination, 'perPage', array_get($pagination, 'per_page', 15));
-        $total = $perPage * array_get($pagination, 'last', 0);
+        $total = array_get($pagination, 'total', null);
+
+        // @deprecated
+        if ($total === null) {
+            $total = $perPage * array_get($pagination, 'last', 0);
+        }
 
         // Set options
         $options = is_array($result) ? array_except($result, [
@@ -1234,13 +1239,17 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      * Get an attribute from the model.
      *
      * @param  string $key
+     * @param  mixed $default
+     *
      * @return mixed
      */
-    public function getAttribute($key)
+    public function getAttribute($key, $default = null)
     {
         if (array_key_exists($key, $this->attributes) || $this->hasGetMutator($key)) {
             return $this->getAttributeValue($key);
         }
+
+        return $default;
     }
 
     /**
@@ -1393,7 +1402,7 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
                 return (string)$value;
             case 'bool':
             case 'boolean':
-                return (bool)$value;
+                return filter_var($value, FILTER_VALIDATE_BOOLEAN);
             case 'object':
                 return is_array($value)
                     ? json_decode(json_encode($value))
