@@ -833,13 +833,14 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      */
     protected function setKeysForSave()
     {
-        // Model defined API params
-        if (method_exists($this, 'toApi')) {
-            return $this->toApi();
-        }
+        // Convert objects to array
+        $params = array_map(function($value) {
+            if ($this->hasToArray($value)) {
+                return $value->toApi();
+            }
 
-        // Get params from attributes
-        $params = $this->attributesToArray();
+            return $value;
+        }, $this->toApi());
 
         // Remove dynamic params
         return array_except($params, array_merge($this->dates, $this->hiddenKeys, [
@@ -1101,6 +1102,16 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
     }
 
     /**
+     * Convert the model instance to an API array.
+     *
+     * @return array
+     */
+    public function toApi()
+    {
+        return $this->attributesToArray();
+    }
+
+    /**
      * Get the current client associated with the model.
      *
      * @return string
@@ -1133,10 +1144,7 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
         // Process attributes
         foreach ($attributes as $key => $value) {
             // Convert objects to array
-            if (is_object($value)
-                && !($value instanceof UploadedFile)
-                && is_callable([$value, 'toArray'])
-            ) {
+            if ($this->hasToArray($value)) {
                 $attributes[$key] = $value->toArray();
             }
 
@@ -1812,6 +1820,21 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
         $method = $halt ? 'until' : 'fire';
 
         return app('events')->$method($event, $this);
+    }
+
+    /**
+     * Determine if the given value can be convert to
+     * an array using the `toArray` method.
+     *
+     * @param mixed $value
+     *
+     * @return bool
+     */
+    protected function hasToArray($value)
+    {
+        return (is_object($value)
+            && !($value instanceof UploadedFile)
+            && is_callable([$value, 'toArray']));
     }
 
     /**
