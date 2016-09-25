@@ -7,13 +7,29 @@ use ArrayAccess;
 use JsonSerializable;
 use Jenssegers\Date\Date;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Contracts\Support\Jsonable;
 use Illuminate\Contracts\Support\Arrayable;
+use Illuminate\Pagination\Paginator;
 use Illuminate\Pagination\LengthAwarePaginator;
 
 abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializable
 {
+    /**
+     * The url query data
+     *
+     * @var array
+     */
+    protected $query = [];
+
+    /**
+     * pagination
+     *
+     * @var array
+     */
+    protected $pagination = [];
+
     /**
      * The client associated with the model.
      *
@@ -369,37 +385,6 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
     }
 
     /**
-     * Create a collection of models from plain arrays.
-     *
-     * @param  array $items
-     * @return array
-     */
-    public static function hydrate(array $items, $class = null)
-    {
-        $items = array_map(function ($item) use ($class) {
-            // Single class given
-            if (gettype($class) === 'string') {
-                return new $class($item);
-            }
-
-            // Map an array of classes
-            if (gettype($class) === 'array') {
-
-                if (isset($item['type']) && isset($class[$item['type']])) {
-                    return new $class[$item['type']]($item);
-                }
-
-                return null;
-            }
-
-            return new static($item, static::getParentID());
-
-        }, $items);
-
-        return array_filter($items);
-    }
-
-    /**
      * Paginate items.
      *
      * @param  array  $result
@@ -432,24 +417,33 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
             'last'
         ]) : [];
 
-        return new LengthAwarePaginator($this->hydrate($items, $modelClass), $total, $perPage, $currentPage,
-            array_merge($options, [
-                'path' => LengthAwarePaginator::resolveCurrentPath()
-            ]));
+        return new LengthAwarePaginator(
+            $items,
+            $total,
+            $perPage,
+            $currentPage,
+            array_merge(
+                $options,
+                [
+                    'path' => LengthAwarePaginator::resolveCurrentPath(),
+//                    'pageName' => $pageName,
+                ]
+            )
+        );
     }
 
     /**
      * Execute the query and get the first result.
      *
      * @param  string $id
-     * @param  array  $params
+     * @param  array  $columns
      * @return mixed|static
      */
-    public static function find($id, array $params = [])
+    public static function find($id, $columns = ['*'])
     {
         $instance = new static([], static::getParentID());
 
-        return $instance->request($instance->getEndpoint(), 'find', [$id, $params]);
+        return $instance->where($instance->getKeyName(), $id)->first($columns);
     }
 
     /**
@@ -470,54 +464,59 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
     /**
      * Make an all paginated request.
      *
-     * @param  array $params
-     * @return \Illuminate\Pagination\LengthAwarePaginator
+     * @param  array $columns
+     * @return \Illuminate\Support\Collection|static[]
      */
-    public static function all(array $params = [])
+    public static function all(array $columns = ['*'])
     {
-        // Remove empty params
-        $params = array_filter($params);
-
         $instance = new static([], static::getParentID());
 
-        // Make request
-        $result = $instance->makeRequest($instance->getEndpoint(), 'all', [$params]);
-
-        // Hydrate object
-        $result = $instance->paginateHydrate($result);
-
-        // Append search params
-        $result->appends($params);
-
-        return $result;
+        return $instance->get($columns);
     }
 
     /**
-     * Paginate request.
+     * Get Pagination
      *
-     * @param  string $method
-     * @param  array  $params
-     * @return \Illuminate\Pagination\LengthAwarePaginator
+     * @return array
      */
-    public static function paginate($method, array $params = [])
+    public function getPagination()
     {
-        // Set request params
-        $params = array_filter(array_merge([
-            'page' => 1
-        ], $params));
+        return $this->pagination;
+    }
 
-        $instance = new static([], static::getParentID());;
+    /**
+     * Paginate the given query.
+     *
+     * @param  int  $perPage
+     * @param  array  $columns
+     * @param  string  $pageName
+     * @param  int|null  $page
+     * @return \Illuminate\Contracts\Pagination\LengthAwarePaginator
+     *
+     * @throws \InvalidArgumentException
+     */
+    public static function paginate($perPage = null, $columns = ['*'], $pageName = 'page', $page = null)
+    {
+        $instance = new static([], static::getParentID());
 
-        // Make request
-        $result = $instance->makeRequest($instance->getEndpoint(), $method, [$params]);
+        if ($perPage) {
+            $instance->take($perPage);
+        }
+        $instance->query['_page'] = $page ?: Paginator::resolveCurrentPage($pageName);
 
-        // Hydrate object
-        $result = $instance->paginateHydrate($result);
+        $items = $instance->get($columns);
+        $pagination = $instance->getPagination();
 
-        // Append search params
-        $result->appends($params);
-
-        return $result;
+        return new LengthAwarePaginator(
+            $items,
+            $pagination['total'],
+            $pagination['per_page'],
+            $pagination['current_page'],
+            [
+                'path' => Paginator::resolveCurrentPath(),
+                'pageName' => $pageName,
+            ]
+        );
     }
 
     /**
@@ -904,13 +903,21 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
     /**
      * Execute the query and get the first result.
      *
-     * @param  string $id
-     * @param  array  $params
-     * @return mixed|static
+     * @param  array  $columns
+     * @return \Illuminate\Support\Collection|static[]
      */
-    public function get($id, array $params = [])
+    public function get($columns = ['*'])
     {
-        return $this->request($this->getEndpoint(), 'find', [$id, $params]);
+        $this->query['_columns'] = $columns;
+        $results = $this->makeRequest($this->getEndpoint(), 'get', [$this->query]);
+        $items = array_pull($results, 'data');
+        $this->pagination = $results;
+
+        $collection = collect($items)->map(function ($item, $key) {
+            return $this->newInstance($item, true);
+        });
+
+        return $collection;
     }
 
     /**
@@ -1057,28 +1064,37 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      */
     public function where($column, $value = null)
     {
-        $this->setAttribute($column, $value);
+        $this->query[$column] = $value;
+        return $this;
+    }
 
+   /**
+     * Set the "limit" value of the query.
+     *
+     * @param  int $value
+     * @return $this
+     */
+    public function take($value)
+    {
+        $this->query['_take'] = $value;
         return $this;
     }
 
     /**
      * Execute the query and get the first result.
      *
-     * NOTE: Used for route binding
-     *
      * @return mixed|static
      */
-    public function first()
+    public function first($columns = ['*'])
     {
-        $result = $this->get($this->getRouteKey());
+        $result = $this->take(1)->get($columns);
 
         // After route event
         if ($result && method_exists($result, 'afterRoute')) {
             $result->afterRoute();
         }
 
-        return $result;
+        return count($result) > 0 ? $result->pop() : null;
     }
 
     /**
@@ -1771,7 +1787,7 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      *
      * @return mixed
      */
-    protected function makeRequest($endpoint = null, $method, $params)
+    protected function makeRequest($endpoint, $method, $params)
     {
         $endpoint = $endpoint ?: $this->getEndpoint();
 

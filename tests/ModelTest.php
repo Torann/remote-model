@@ -204,48 +204,48 @@ class ModelTest extends Orchestra\Testbench\TestCase
 
     public function testStaticFindMethod()
     {
+        $rawData = (new EndpointStub)->get(['_take'=>1])['data'][0];
+
         ModelStub::setClient(new ClientStub);
 
-        $model = ModelStub::find(1);
-        $this->assertEquals(1, $model->id);
+        $model = ModelStub::find($rawData['id']);
+        $this->assertEquals($rawData['id'], $model->id);
     }
 
     public function testStaticAllMethod()
     {
         ModelStub::setClient(new ClientStub);
+        $total = count((new EndpointStub)->get([])['data']);
 
         $model = ModelStub::all();
-        $this->assertEquals(1, $model->count());
+        $this->assertEquals($total, $model->count());
     }
 
     public function testStaticPaginateMethod()
     {
         ModelStub::setClient(new ClientStub);
+        $total = count((new EndpointStub)->get([])['data']);
 
-        $model = ModelStub::paginate('paginateTest');
-        $this->assertEquals(2, $model->count());
+        $model = ModelStub::paginate();
+        $this->assertEquals($total, $model->count());
     }
 
     public function testUpdateMethod()
     {
         ModelStub::setClient(new ClientStub);
-
+        $rawData = (new EndpointStub)->get(['_take'=>1])['data'][0];
         $model = ModelStub::find(1);
 
         $model->update([
             'name' => 'John Doe'
         ]);
-
-        $this->assertEquals([
-            'id' => 1,
-            'name' => 'John Doe'
-        ], $model->getAttributes());
+        $rawData['name'] = 'John Doe';
+        $this->assertEquals($rawData, $model->getAttributes());
     }
 
     public function testPaginateHydrateMethod()
     {
         ModelStub::setClient(new ClientStub);
-
         $model = ModelStub::find(1);
 
         $newModel = $model->paginateHydrate([
