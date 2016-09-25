@@ -202,13 +202,13 @@ class ModelTest extends Orchestra\Testbench\TestCase
         $this->assertEquals($params, $model->getAttributes());
     }
 
-    public function testStaticFindMethod()
+    public function testStaticFindOrFailMethod()
     {
         $rawData = (new EndpointStub)->get(['_take'=>1])['data'][0];
 
         ModelStub::setClient(new ClientStub);
 
-        $model = ModelStub::find($rawData['id']);
+        $model = ModelStub::findOrFail($rawData['id']);
         $this->assertEquals($rawData['id'], $model->id);
     }
 

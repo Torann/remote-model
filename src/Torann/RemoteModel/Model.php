@@ -426,7 +426,6 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
                 $options,
                 [
                     'path' => LengthAwarePaginator::resolveCurrentPath(),
-//                    'pageName' => $pageName,
                 ]
             )
         );
@@ -523,22 +522,19 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      * Find a model by its primary key or throw an exception
      *
      * @param  string $id
-     * @param  array  $params
+     * @param  array  $columns
      * @return mixed|static
      *
      * @throws \Torann\RemoteModel\NotFoundException
      */
-    public static function findOrFail($id, array $params = [])
+    public static function findOrFail($id, $columns = ['*'])
     {
-        $instance = new static([], static::getParentID());
-
-        // Make request
-        if (!is_null($result = $instance->request($instance->getEndpoint(), 'find', [$id, $params]))) {
-            return $result;
+        $result = static::find($id, $columns);
+        if (is_null($result)) {
+            throw new NotFoundException;
         }
 
-        // Not found
-        throw new NotFoundException;
+        return $result;
     }
 
     /**
