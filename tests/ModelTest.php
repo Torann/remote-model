@@ -2,7 +2,7 @@
 
 use Carbon\Carbon;
 
-class ModelTest extends PHPUnit_Framework_TestCase
+class ModelTest extends Orchestra\Testbench\TestCase
 {
     public function testAttributeManipulation()
     {

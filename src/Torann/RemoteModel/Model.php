@@ -231,6 +231,17 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
     }
 
     /**
+     * Encode the given value as JSON.
+     *
+     * @param  mixed  $value
+     * @return string
+     */
+    protected function asJson($value)
+    {
+        return json_encode($value);
+    }
+
+    /**
      * Get the value of the model's primary key.
      *
      * @return mixed
@@ -1442,6 +1453,10 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
         // the model, such as "json_encoding" an listing of data for storage.
         if ($this->hasSetMutator($key)) {
             return $this->{'set' . studly_case($key) . 'Attribute'}($value);
+        }
+
+        if ($this->isJsonCastable($key) && ! is_null($value)) {
+            $value = $this->asJson($value);
         }
 
         $this->attributes[$key] = $value;
