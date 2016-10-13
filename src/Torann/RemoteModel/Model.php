@@ -784,7 +784,9 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
             return false;
         }
 
-        $results = $this->makeRequest($this->getEndpoint(), 'create', [$this->attributes]);
+        $params = $this->setKeysForSave();
+
+        $results = $this->makeRequest($this->getEndpoint(), 'create', [$params]);
 
         // Creation failed
         if (!$results) {
@@ -835,7 +837,9 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
     {
         // Convert objects to array
         $params = array_map(function($value) {
-            if ($this->hasToArray($value)) {
+            if (is_object($value)
+                && !($value instanceof UploadedFile)
+                && is_callable([$value, 'toApi'])) {
                 return $value->toApi();
             }
 
@@ -1835,6 +1839,21 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
         return (is_object($value)
             && !($value instanceof UploadedFile)
             && is_callable([$value, 'toArray']));
+    }
+
+    /**
+     * Determine if the given value can be convert to
+     * an array using the `toArray` method.
+     *
+     * @param mixed $value
+     *
+     * @return bool
+     */
+    protected function hasToApi($value)
+    {
+        return (is_object($value)
+            && !($value instanceof UploadedFile)
+            && is_callable([$value, 'toApi']));
     }
 
     /**
