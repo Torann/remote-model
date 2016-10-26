@@ -36,6 +36,13 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
     public $exists = false;
 
     /**
+     * Indicates if the model should be timestamped.
+     *
+     * @var bool
+     */
+    public $timestamps = true;
+
+    /**
      * The model's attributes.
      *
      * @var array
@@ -89,10 +96,7 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      *
      * @var array
      */
-    protected $dates = [
-        'createdAt',
-        'updatedAt'
-    ];
+    protected $dates = [];
 
     /**
      * The attributes that should be casted to native types.
@@ -142,6 +146,20 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
      * @var array
      */
     private $messageBag;
+
+    /**
+     * The name of the "created at" column.
+     *
+     * @var string
+     */
+    const CREATED_AT = 'createdAt';
+
+    /**
+     * The name of the "updated at" column.
+     *
+     * @var string
+     */
+    const UPDATED_AT = 'updatedAt';
 
     /**
      * Create a new Eloquent model instance.
@@ -847,10 +865,9 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
         }, $this->toApi());
 
         // Remove dynamic params
-        return array_except($params, array_merge($this->dates, $this->hiddenKeys, [
+        return array_except($params, array_merge([static::CREATED_AT, static::UPDATED_AT], [
             'id',
             'pagination',
-            'items'
         ]));
     }
 
@@ -1155,7 +1172,7 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
             // If an attribute is a date, we will cast it to a string after converting it
             // to a DateTime / \Jenssegers\Date\Date instance. This is so we will get some consistent
             // formatting while accessing attributes vs. arraying / JSONing a model.
-            if (in_array($key, $this->dates)) {
+            if (in_array($key, $this->getDates())) {
                 $attributes[$key] = $this->serializeDate(
                     $this->asDateTime($value)
                 );
@@ -1291,7 +1308,7 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
         // If the attribute is listed as a date, we will convert it to a DateTime
         // instance on retrieval, which makes it quite convenient to work with
         // date fields without having to create a mutator for each property.
-        elseif (in_array($key, $this->dates)) {
+        elseif (in_array($key, $this->getDates())) {
             if (!is_null($value)) {
                 return $this->asDateTime($value);
             }
@@ -1460,6 +1477,18 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
     public function hasSetMutator($key)
     {
         return method_exists($this, 'set' . studly_case($key) . 'Attribute');
+    }
+
+    /**
+     * Get the attributes that should be converted to dates.
+     *
+     * @return array
+     */
+    public function getDates()
+    {
+        $defaults = [static::CREATED_AT, static::UPDATED_AT];
+
+        return $this->timestamps ? array_merge($this->dates, $defaults) : $this->dates;
     }
 
     /**
