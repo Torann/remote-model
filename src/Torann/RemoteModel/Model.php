@@ -807,7 +807,7 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
         $results = $this->makeRequest($this->getEndpoint(), 'create', [$params]);
 
         // Creation failed
-        if (!$results) {
+        if (is_array($results) === false) {
             return false;
         }
 
