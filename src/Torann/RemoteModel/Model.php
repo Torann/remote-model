@@ -384,6 +384,14 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
     public static function hydrate(array $items, $class = null)
     {
         $items = array_map(function ($item) use ($class) {
+
+            // Account for ID only
+            if (gettype($item) === 'string') {
+                $item = [
+                    'id' => $item,
+                ];
+            }
+
             // Single class given
             if (gettype($class) === 'string') {
                 return new $class($item);
