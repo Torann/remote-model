@@ -427,16 +427,11 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
         // Get values
         $pagination = array_get($result, 'pagination', []);
         $items = array_get($result, 'items', []);
-        $currentPage = array_get($pagination, 'next', 2) - 1;
+        $page = LengthAwarePaginator::resolveCurrentPage();
 
         // Set pagination
         $perPage = array_get($pagination, 'perPage', array_get($pagination, 'per_page', 15));
         $total = array_get($pagination, 'total', null);
-
-        // @deprecated
-        if ($total === null) {
-            $total = $perPage * array_get($pagination, 'last', 0);
-        }
 
         // Set options
         $options = is_array($result) ? array_except($result, [
@@ -447,7 +442,7 @@ abstract class Model implements ArrayAccess, Arrayable, Jsonable, JsonSerializab
             'last'
         ]) : [];
 
-        return new LengthAwarePaginator($this->hydrate($items, $modelClass), $total, $perPage, $currentPage,
+        return new LengthAwarePaginator($this->hydrate($items, $modelClass), $total, $perPage, $page,
             array_merge($options, [
                 'path' => LengthAwarePaginator::resolveCurrentPath()
             ]));
