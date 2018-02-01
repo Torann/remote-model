@@ -2,11 +2,11 @@
   "name": "torann/remote-model",
   "description": "An eloquent-like model, for the Laravel framework.",
   "keywords": ["laravel","eloquent","model","api","remote data","custom models"],
-  "license": "BSD 2-Clause",
+  "license": "BSD-2-Clause",
   "authors": [
     {
       "name": "Daniel Stainback",
-      "email": "daniel@lyften.com"
+      "email": "torann@gmail.com"
     }
   ],
   "require": {
